@@ -36,8 +36,23 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # 不用 android-actions/setup-android（第一次跑就挂在这一步），
+      # 直接用 runner 预装的 SDK，再用 sdkmanager 补齐 platform 34 / build-tools 34。
+      - name: Prepare Android SDK
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "使用 SDK: $SDK"
+          ls -d "$SDK"/platforms/* 2>/dev/null || true
+          SM=$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager: ${SM:-（没有）}"
+          if [ -n "$SM" ]; then
+            yes | "$SM" --licenses > /dev/null 2>&1 || true
+            "$SM" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -5 || true
+          fi
+          ls -d "$SDK"/platforms/* "$SDK"/build-tools/* 2>/dev/null || true
 
       - name: Decode keystore (if provided)
         env:
@@ -68,8 +83,11 @@ jobs:
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
           echo "APK 大小: $(du -h "$APK" | cut -f1)"
-          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BT/apksigner" verify --print-certs "$APK" | head -6
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1)
+          echo "build-tools: $BT"
+          if [ -n "$BT" ] && [ -x "$BT/apksigner" ]; then
+            "$BT/apksigner" verify --print-certs "$APK" | head -6
+          fi
 
       - name: Rename APK
         run: |
