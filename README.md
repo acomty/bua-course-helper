@@ -6,6 +6,11 @@
 
 > 非官方工具，作者与学校无关；请自行评估使用风险。
 
+## 下载
+
+**最新安装包**：[Releases](https://github.com/acomty/bua-course-helper/releases/latest) → `CourseHelper-v3.6.apk`
+（安卓 7.0 以上；安装时允许「未知来源」）
+
 ## 功能
 
 - **导入课表的三种方式**
