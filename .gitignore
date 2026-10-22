@@ -1,0 +1,27 @@
+# 构建产物
+build/
+app/build/
+.gradle/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# 本地环境（含本机 SDK 路径，别提交）
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 签名（绝对不要提交）
+*.jks
+*.keystore
+keystore.properties

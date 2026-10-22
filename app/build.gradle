@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.bua.coursehelper'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.bua.coursehelper"
+        minSdk 24
+        targetSdk 34
+        versionCode 20
+        versionName "3.6"
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ""
+        }
+        release {
+            minifyEnabled false
+            // 用 debug 签名，方便直接安装（自己用足够）
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+// 不依赖任何第三方库：网络用 HttpURLConnection，JSON 用系统自带 org.json
+// （testImplementation 只在电脑上跑冒烟测试时用到，不会打进 APK）
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.12.2'
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">课表助手</string>
+    <string name="widget_today_label">今日课表</string>
+    <string name="widget_two_days_label">今日+明日课表</string>
+    <string name="widget_today_desc">在桌面显示今天的课程</string>
+    <string name="widget_two_days_desc">在桌面显示今天和明天的课程</string>
+</resources>
