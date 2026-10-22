@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private Button btnImportFile;
     private Button btnAddCourse;
     private Button btnVpnImport;
+    private Button btnCheckUpdate;
     private Button btnSetCurrentWeek;
     private LinearLayout configCard;
     private LinearLayout weekContainer;
@@ -95,6 +96,7 @@ public class MainActivity extends Activity {
         btnImportFile = findViewById(R.id.btnImportFile);
         btnAddCourse = findViewById(R.id.btnAddCourse);
         btnVpnImport = findViewById(R.id.btnVpnImport);
+        btnCheckUpdate = findViewById(R.id.btnCheckUpdate);
         btnSetCurrentWeek = findViewById(R.id.btnSetCurrentWeek);
         configCard = findViewById(R.id.configCard);
         weekContainer = findViewById(R.id.weekContainer);
@@ -130,6 +132,7 @@ public class MainActivity extends Activity {
         btnShare.setOnClickListener(v -> shareTimetable());
         btnImportFile.setOnClickListener(v -> pickTimetableFile());
         btnVpnImport.setOnClickListener(v -> startVpnImport());
+        btnCheckUpdate.setOnClickListener(v -> checkUpdate());
         btnAddCourse.setOnClickListener(v -> showCourseEditor(null));
         btnSetCurrentWeek.setOnClickListener(v -> applyWeekInput());
         btnCourseList.setOnClickListener(v -> showCourseList());
@@ -383,6 +386,104 @@ public class MainActivity extends Activity {
             finishImport(true, "导入成功：" + parsed.courses.size() + " 条课程安排", parsed);
         } catch (Exception e) {
             finishImport(false, "导入失败：" + e.getMessage(), null);
+        }
+    }
+
+    // ---------------- 检查更新 ----------------
+
+    /** App 当前版本（来自 AndroidManifest 的 versionName） */
+    private String appVersion() {
+        try {
+            return String.valueOf(getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** 查 GitHub Releases 有没有新版本 */
+    private void checkUpdate() {
+        final String current = appVersion();
+        btnCheckUpdate.setEnabled(false);
+        btnCheckUpdate.setText("正在检查…");
+        setStatus("正在检查更新（当前 v" + current + "）…");
+        new Thread(() -> {
+            try {
+                final UpdateChecker.Info info = UpdateChecker.fetchLatest();
+                final boolean newer = UpdateChecker.isNewer(current, info.tag);
+                runOnUiThread(() -> {
+                    resetUpdateButton();
+                    if (newer) {
+                        setStatus("发现新版本 " + info.tag + "（当前 v" + current + "）");
+                        showNewVersionDialog(info, current);
+                    } else {
+                        setStatus("已是最新版本（v" + current + "）");
+                        toast("已是最新版本 v" + current);
+                    }
+                });
+            } catch (Exception e) {
+                final String reason = e.getMessage() == null ? "网络不通" : e.getMessage();
+                runOnUiThread(() -> {
+                    resetUpdateButton();
+                    setStatus("检查更新失败：" + reason);
+                    showUpdateFailedDialog(reason);
+                });
+            }
+        }).start();
+    }
+
+    private void resetUpdateButton() {
+        if (btnCheckUpdate != null) {
+            btnCheckUpdate.setEnabled(true);
+            btnCheckUpdate.setText("检查更新");
+        }
+    }
+
+    private void showNewVersionDialog(UpdateChecker.Info info, String current) {
+        String notes = info.notes == null ? "" : info.notes.trim();
+        if (notes.length() > 1200) {
+            notes = notes.substring(0, 1200) + "…";
+        }
+        String message = notes.isEmpty()
+                ? "最新版本 " + info.tag + "（当前 v" + current + "）"
+                : notes;
+        new AlertDialog.Builder(this)
+                .setTitle("发现新版本 " + info.tag)
+                .setMessage(message)
+                .setPositiveButton("去下载", (dialog, which) -> openUrl(info.downloadUrl))
+                .setNeutralButton("复制链接", (dialog, which) -> copyText(info.downloadUrl))
+                .setNegativeButton("以后再说", null)
+                .show();
+    }
+
+    private void showUpdateFailedDialog(String reason) {
+        new AlertDialog.Builder(this)
+                .setTitle("检查更新失败")
+                .setMessage(reason + "\n\n国内网络访问 GitHub 有时不通，"
+                        + "可以用浏览器手动打开下载页看看有没有新版本。")
+                .setPositiveButton("打开下载页", (dialog, which) -> openUrl(UpdateChecker.RELEASES_PAGE))
+                .setNegativeButton("知道了", null)
+                .show();
+    }
+
+    private void openUrl(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            toast("打不开浏览器，请手动访问：" + url);
+        }
+    }
+
+    private void copyText(String text) {
+        try {
+            android.content.ClipboardManager manager =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            manager.setPrimaryClip(android.content.ClipData.newPlainText("下载链接", text));
+            toast("链接已复制");
+        } catch (Exception e) {
+            toast("复制失败");
         }
     }
 

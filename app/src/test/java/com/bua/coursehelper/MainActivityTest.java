@@ -855,6 +855,47 @@ public class MainActivityTest {
                 ((TextView) today.findViewById(R.id.widget_time1)).getText().toString());
     }
 
+    /** v3.7：版本号比较（「检查更新」用） */
+    @Test
+    public void 版本号比较正确() {
+        assertTrue(UpdateChecker.compareVersions("3.7", "3.6") > 0);
+        assertEquals(0, UpdateChecker.compareVersions("v3.6", "3.6"));
+        assertTrue("3.10 要比 3.9 新", UpdateChecker.compareVersions("3.10", "3.9") > 0);
+        assertTrue(UpdateChecker.compareVersions("4", "3.9") > 0);
+        assertTrue(UpdateChecker.compareVersions("3.6.1", "3.6") > 0);
+        assertTrue(UpdateChecker.compareVersions("3.6", "3.6.1") < 0);
+
+        assertTrue(UpdateChecker.isNewer("3.6", "v3.7"));
+        assertFalse(UpdateChecker.isNewer("3.7", "v3.7"));
+        assertFalse("不能把旧版本当成新版本", UpdateChecker.isNewer("3.7", "v3.6"));
+    }
+
+    /** v3.7：解析 GitHub release JSON，拿到版本号、说明和 apk 下载地址 */
+    @Test
+    public void 解析GitHub发布信息() throws Exception {
+        String json = "{\"tag_name\":\"v3.7\",\"body\":\"修复若干问题\","
+                + "\"html_url\":\"https://github.com/acomty/bua-course-helper/releases/tag/v3.7\","
+                + "\"assets\":[{\"name\":\"notes.txt\",\"browser_download_url\":\"https://x/notes.txt\"},"
+                + "{\"name\":\"CourseHelper-v3.7.apk\",\"browser_download_url\":\"https://x/apk\"}]}";
+        UpdateChecker.Info info = UpdateChecker.parseRelease(json);
+        assertEquals("v3.7", info.tag);
+        assertEquals("修复若干问题", info.notes);
+        assertEquals("要优先取 apk 附件", "https://x/apk", info.downloadUrl);
+        assertTrue(info.pageUrl.contains("v3.7"));
+
+        // 没有 apk 附件时退回 release 页面
+        UpdateChecker.Info noAsset = UpdateChecker.parseRelease("{\"tag_name\":\"v9\",\"assets\":[]}");
+        assertEquals(UpdateChecker.RELEASES_PAGE, noAsset.downloadUrl);
+    }
+
+    /** v3.7：设置页要有「检查更新」按钮 */
+    @Test
+    public void 有检查更新按钮() {
+        MainActivity activity = Robolectric.buildActivity(MainActivity.class).setup().get();
+        assertNotNull("设置卡片里应该有检查更新按钮",
+                activity.findViewById(R.id.btnCheckUpdate));
+    }
+
     @Test
     public void 有缓存的课表能往返读写() {
         Timetable timetable = Timetable.fromJson(cacheJson("2026-09-07"));
