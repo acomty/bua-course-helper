@@ -20,11 +20,14 @@ android {
     signingConfigs {
         release {
             def ksPath = System.getenv("ANDROID_KEYSTORE_FILE")
-            if (ksPath != null && !ksPath.trim().isEmpty() && file(ksPath).exists()) {
+            if (ksPath != null && !ksPath.trim().isEmpty() && file(ksPath.trim()).exists()) {
+                def storePass = (System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android").trim()
+                def aliasName = (System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey").trim()
+                def keyPass = (System.getenv("ANDROID_KEY_PASSWORD") ?: "android").trim()
                 storeFile file(ksPath.trim())
-                storePassword (System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android").trim()
-                keyAlias (System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey").trim()
-                keyPassword (System.getenv("ANDROID_KEY_PASSWORD") ?: "android").trim()
+                storePassword storePass
+                keyAlias aliasName
+                keyPassword keyPass
             }
         }
     }
