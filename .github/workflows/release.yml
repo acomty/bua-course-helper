@@ -1,0 +1,88 @@
+name: Release
+
+# 打 tag（v3.8 这种）就自动构建并发布 APK。
+# 需要先在仓库 Settings → Secrets and variables → Actions 里配置：
+#   ANDROID_KEYSTORE_BASE64     本机 debug.keystore 的 base64
+#   ANDROID_KEYSTORE_PASSWORD   密钥库口令（AGP 默认 android）
+#   ANDROID_KEY_ALIAS           密钥别名（默认 androiddebugkey）
+#   ANDROID_KEY_PASSWORD        密钥口令（默认 android）
+# 不配置也能跑，但会用 CI 自动生成的 debug 签名，和已安装的 App 签名不一致 → 升级会冲突。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要构建发布的 tag（例如 v3.8）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Decode keystore (if provided)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore"
+              echo "ANDROID_KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD:-android}"
+              echo "ANDROID_KEY_ALIAS=${KEY_ALIAS:-androiddebugkey}"
+              echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD:-android}"
+            } >> "$GITHUB_ENV"
+            echo "✅ 已载入正式签名密钥"
+          else
+            echo "::warning::没有配置 ANDROID_KEYSTORE_BASE64，将使用 CI 自动生成的 debug 签名（升级会签名冲突）"
+          fi
+
+      - name: Build release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Show APK signature
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          echo "APK 大小: $(du -h "$APK" | cut -f1)"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/apksigner" verify --print-certs "$APK" | head -6
+
+      - name: Rename APK
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/CourseHelper-${TAG}.apk"
+          ls -l out
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
+          files: out/CourseHelper-*.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true

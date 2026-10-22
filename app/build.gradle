@@ -14,14 +14,29 @@ android {
         versionName "3.7"
     }
 
+    // 签名：CI 里通过环境变量提供 keystore；本地没有时退回 debug 签名。
+    // 关键：CI 必须用和本地同一个 keystore，否则同学升级会报"签名冲突"。
+    signingConfigs {
+        release {
+            def ksPath = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ksPath != null && !ksPath.trim().isEmpty() && file(ksPath).exists()) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "android"
+                keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix ""
         }
         release {
             minifyEnabled false
-            // 用 debug 签名，方便直接安装（自己用足够）
-            signingConfig signingConfigs.debug
+            // 有正式 keystore 就用它，否则用 debug 签名（自己用足够）
+            signingConfig signingConfigs.release.storeFile != null
+                    ? signingConfigs.release : signingConfigs.debug
         }
     }
 
