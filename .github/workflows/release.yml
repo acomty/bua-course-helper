@@ -77,7 +77,22 @@ jobs:
       - name: Build release APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew --version
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
+
+      # 失败时把日志尾巴推到 ci-log 分支，方便在没权限看 Actions 日志的情况下排查
+      - name: Dump build log on failure
+        if: failure()
+        run: |
+          tail -c 20000 build.log > ci-fail.log 2>/dev/null || echo "没有 build.log" > ci-fail.log
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -b ci-log || git checkout ci-log
+          git add -f ci-fail.log
+          git commit -m "CI 失败日志 $(date -u +%Y%m%d-%H%M%S)" || true
+          git push -f origin ci-log || true
+        continue-on-error: true
 
       - name: Show APK signature
         run: |
