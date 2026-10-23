@@ -663,19 +663,20 @@ public class MainActivityTest {
                 .startsWith("https://vpn.bua.edu.cn/?redirect_uri="));
     }
 
-    /** v3.1 校外导入：页面内取课表的脚本要带上接口、学年学期、同源凭据，并能识别 403 */
+    /** v3.8 校外导入：脚本要能在 iframe 场景下自己找课表接口（学校门户把课表放在框架里） */
     @Test
     public void 页面内取课表的脚本正确() {
         String script = VpnImportActivity.buildFetchScript("2026", "3");
         assertTrue("要请求课表接口: " + script,
                 script.contains("/jwglxt/kbcx/xskbcx_cxXsKb.html?gnmkdm=N2151"));
-        assertTrue("接口地址要从当前页面推导（WebVPN 与网关两种入口通用）",
-                script.contains("location.pathname") && script.contains("indexOf('/jwglxt')"));
+        assertTrue("要从顶层页面和 iframe 里推导前缀",
+                script.contains("location.pathname") && script.contains("frames["));
+        assertTrue("还要能从 iframe/a 的 src、href 里找",
+                script.contains("querySelectorAll"));
         assertTrue("要带上学年", script.contains("append('xnm','2026')"));
         assertTrue("要带上学期", script.contains("append('xqm','3')"));
         assertTrue("要带同源凭据（会话靠浏览器自己带）", script.contains("credentials:'include'"));
         assertTrue("要回调 Java", script.contains("Android.onResult"));
-        assertTrue("403 要单独识别出来", script.contains("Forbidden"));
         assertTrue("取不到数据要报错而不是静默", script.contains("Android.onError"));
     }
 

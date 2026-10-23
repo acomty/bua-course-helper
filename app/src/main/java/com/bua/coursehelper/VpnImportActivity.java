@@ -162,7 +162,9 @@ public class VpnImportActivity extends Activity {
 
         importButton = new Button(this);
         importButton.setText("导入课表");
-        importButton.setEnabled(false);
+        // 始终可点：学校门户的课表是在 iframe 里打开的，整页跳转回调可能等不到，
+        // 让用户随时可以手动触发（脚本会自己找课表接口）。
+        importButton.setEnabled(true);
         LinearLayout.LayoutParams importParams = new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 2f);
         importParams.setMarginStart(dp(8));
@@ -192,8 +194,8 @@ public class VpnImportActivity extends Activity {
 
     private String hintFor(String which) {
         if (ENTRY_WEBVPN.equals(which)) {
-            return "请登录学校 WebVPN，然后打开教务系统（课表查询）页面；"
-                    + "看到教务系统页面会自动取课表，也可以点下面「导入课表」";
+            return "请登录学校 WebVPN → 打开「个人课表查询」→ 看到课表后点下面「导入课表」"
+                    + "（不用等它自动，随时可以点）";
         }
         return "请登录学校 SSL VPN；若提示 403，说明网关不放行，请切到网页版 WebVPN";
     }
@@ -220,16 +222,30 @@ public class VpnImportActivity extends Activity {
     /**
      * 生成页面内取课表的 JS。
      *
-     * 关键点：接口地址**从当前页面地址推导**——
-     *   SSL VPN 网关页面：/jwglxt/index_initMenu.html        → /jwglxt/kbcx/…
-     *   WebVPN 页面：     /https/xxxx/jwglxt/index_initMenu.html → /https/xxxx/jwglxt/kbcx/…
-     * 这样两种入口都不用改代码。
+     * 难点：学校门户是"我的应用"式页面，课表查询是**在 iframe 内部**打开的，
+     * 这时顶层页面的地址里没有 /jwglxt，只有 iframe 里有。所以这里不猜一个地址，
+     * 而是**收集所有候选前缀**（顶层路径、各个 iframe 的路径、页面里 iframe/a 的 src/href），
+     * 逐个 POST 试探，谁的响应是 JSON 就用谁。
+     *
+     *   SSL VPN 网关：/jwglxt/...                        → 前缀 ""
+     *   WebVPN：      /https/xxxx/jwglxt/...             → 前缀 "/https/xxxx"
+     *   iframe 场景：  课表在 frames[i] 里                 → 从 frames[i].location.pathname 取
      */
     static String buildFetchScript(String xnm, String xqm) {
         return "(function(){"
-                + "var p=location.pathname,i=p.indexOf('/jwglxt');"
-                + "var prefix=i>0?p.substring(0,i):'';"
-                + "var url=prefix+'/jwglxt/kbcx/xskbcx_cxXsKb.html?gnmkdm=N2151';"
+                + "var list=[];"
+                + "function add(p){if(!p){return;}var i=p.indexOf('/jwglxt');"
+                + "if(i<0){return;}var pre=p.substring(0,i);if(list.indexOf(pre)<0){list.push(pre);}}"
+                + "try{add(location.pathname);}catch(e){}"
+                + "try{for(var f=0;f<frames.length;f++){try{add(frames[f].location.pathname);}catch(e){}}}catch(e){}"
+                + "try{var ns=document.querySelectorAll('iframe,a');"
+                + "for(var k=0;k<ns.length;k++){"
+                + "add(ns[k].getAttribute('src')||'');add(ns[k].getAttribute('href')||'');}}catch(e){}"
+                + "if(list.indexOf('')<0){list.push('');}"
+                + "var idx=0;"
+                + "function tryNext(){"
+                + "if(idx>=list.length){Android.onError('" + NOT_LOGGED_IN + "');return;}"
+                + "var url=list[idx++]+'/jwglxt/kbcx/xskbcx_cxXsKb.html?gnmkdm=N2151';"
                 + "var body=new FormData();"
                 + "body.append('xnm','" + xnm + "');"
                 + "body.append('xqm','" + xqm + "');"
@@ -238,9 +254,11 @@ public class VpnImportActivity extends Activity {
                 + ".then(function(t){"
                 + "var s=t.replace(/^\\s+/,'');"
                 + "if(s.indexOf('{')===0||t.indexOf('kbList')>=0){Android.onResult(t);}"
-                + "else if(t.indexOf('403')>=0||t.indexOf('Forbidden')>=0){Android.onError('" + FORBIDDEN + "');}"
-                + "else{Android.onError('" + NOT_LOGGED_IN + "');}"
-                + "}).catch(function(e){Android.onError(String(e));});"
+                + "else if(t.indexOf('Forbidden')>=0){Android.onError('" + FORBIDDEN + "');}"
+                + "else{tryNext();}"
+                + "}).catch(function(){tryNext();});"
+                + "}"
+                + "tryNext();"
                 + "})();";
     }
 
@@ -289,7 +307,8 @@ public class VpnImportActivity extends Activity {
             final String reason = String.valueOf(message);
             runOnUiThread(() -> {
                 if (NOT_LOGGED_IN.equals(reason)) {
-                    setStatus("还没登录教务系统：请在页面里登录并打开课表页面，再点「导入课表」");
+                    setStatus("没找到课表接口：请先在页面里打开「个人课表查询」并点「查询」看到课表，"
+                            + "再点「导入课表」；还不行就用「从文件导入」");
                 } else if (FORBIDDEN.equals(reason)) {
                     setStatus("学校网关拒绝代理教务系统（403）：请点右上角切到「网页版 WebVPN」再试；"
                             + "两条路都不行就用「从文件导入」");

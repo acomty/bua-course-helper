@@ -10,8 +10,8 @@ android {
         applicationId "com.bua.coursehelper"
         minSdk 24
         targetSdk 34
-        versionCode 21
-        versionName "3.7"
+        versionCode 22
+        versionName "3.8"
     }
 
     // 签名：CI 里通过环境变量提供 keystore；本地没有时退回 debug 签名。
